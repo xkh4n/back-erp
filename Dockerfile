@@ -1,0 +1,38 @@
+### Etapa 1: Instalar dependencias en desarrollo
+FROM node:24-alpine3.21 AS dev-dependencies
+WORKDIR /app
+COPY ./package.json ./
+COPY ./package-lock.json ./
+RUN npm install
+
+### Etapa 2: Preparar el entorno de desarrollo con código fuente
+FROM node:24-alpine3.21 AS builder-dev
+WORKDIR /app
+COPY --from=dev-dependencies /app/node_modules ./node_modules
+COPY --from=dev-dependencies /app/package.json ./package.json
+COPY ./src ./src
+COPY ./tsconfig.json ./
+
+### Etapa 3: Contenedor final para desarrollo
+FROM node:24-slim AS dev
+WORKDIR /app
+
+# Instalar dependencias del sistema necesarias
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar solo package files para instalar dependencias
+COPY package*.json ./
+RUN npm install
+
+# Instalar ts-node-dev globalmente para hot-reload
+RUN npm install -g ts-node-dev nodemon
+
+# Copiar código fuente (será sobrescrito por volume en desarrollo)
+COPY . .
+
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
