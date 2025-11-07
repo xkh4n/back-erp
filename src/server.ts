@@ -20,7 +20,9 @@ app.use(express.urlencoded({ extended: true }));
 /* ROUTES */
 import { health } from "./routes";
 
-app.use("/api", health);
+/* CONFIGURE ROUTES */
+const base_path = "/api/" + process.env.API_VERSION + "/";
+app.use(base_path, health);
 
 
 /* STATICS FOLDERS */
