@@ -9,15 +9,6 @@ const dbConfig: config = {
     // Conexión a través del proxy (configuración recomendada)
     server: '10.2.0.10', // IP del proxy en app_net
     port: 3037, // Puerto del proxy para SQL Server
-    
-    // Alternativa usando hostname del proxy
-    // server: `${process.env.PROXY_HOST}01dev`, // sputnik01dev
-    // port: 3037,
-    
-    // Conexión directa a la base de datos (alternativa)
-    // server: `${process.env.DB_HOST}01dev`, // cassini01dev
-    // port: parseInt(process.env.DB_PORT_INTERNAL || '1433'),
-    
     database: `${process.env.DB_NAME}`,
     user: `${process.env.DB_USER}`,
     password: `${process.env.DB_PASSWORD}`,
@@ -53,12 +44,6 @@ export async function getConnection(): Promise<ConnectionPool> {
             database: dbConfig.database,
             user: dbConfig.user
         });
-        
-        // Sugerir alternativas
-        logger.info('💡 Alternativas a probar:');
-        logger.info('1. Conexión directa por IP: 10.3.0.50:1433');
-        logger.info('2. Verificar que cassini01dev esté ejecutándose');
-        logger.info('3. Verificar conectividad de red entre contenedores');
         
         throw error;
     }
