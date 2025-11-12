@@ -34,5 +34,7 @@ RUN npm install -g ts-node-dev nodemon
 # Copiar código fuente (será sobrescrito por volume en desarrollo)
 COPY . .
 
+COPY scripts/start-dev.sh /scripts/start-dev.sh
+RUN chmod +x /scripts/start-dev.sh
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+CMD ["/scripts/start-dev.sh"]

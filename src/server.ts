@@ -18,12 +18,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* ROUTES */
-import { health } from "./routes";
+import { health, country } from "./routes";
 
 /* CONFIGURE ROUTES */
 const base_path = "/api/" + process.env.API_VERSION + "/";
 app.use(base_path, health);
-
+app.use(base_path, country);
 
 /* STATICS FOLDERS */
 app.use(express.static("uploads"));

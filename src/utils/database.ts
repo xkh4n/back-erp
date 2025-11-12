@@ -4,10 +4,14 @@ const logger = Log4js.getLogger('databaseUtils');
 logger.level = "all";
 
 import { config, ConnectionPool } from "mssql";
+import * as sql from "mssql";
 
+logger.fatal(`Valor de DATABASE_URL: ${process.env.DATABASE_URL}`);
 const dbConfig: config = {
     // Conexión a través del proxy (configuración recomendada)
-    server: '10.2.0.10', // IP del proxy en app_net
+    //server: '10.2.0.10', // IP del proxy en app_net
+    
+    server:`${process.env.PROXY_HOST}01dev`,
     port: 3037, // Puerto del proxy para SQL Server
     database: `${process.env.DB_NAME}`,
     user: `${process.env.DB_USER}`,
@@ -45,6 +49,26 @@ export async function getConnection(): Promise<ConnectionPool> {
             user: dbConfig.user
         });
         
+        throw error;
+    }
+}
+
+// Función para obtener la conexión MSSQL
+export async function getDatabase() {
+    return {
+        mssql: await getConnection()
+    };
+}
+
+// Función para inicializar conexiones
+export async function initializeConnections() {
+    try {
+        // Inicializar conexión MSSQL
+        await getConnection();
+        
+        logger.info('✅ Conexión de base de datos inicializada');
+    } catch (error) {
+        logger.error('❌ Error inicializando conexión:', error);
         throw error;
     }
 }

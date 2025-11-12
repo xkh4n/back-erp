@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider      = "prisma-client-js"
+    binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+    provider = "sqlserver"
+    url      = env("DATABASE_URL")
+}
+
+// Tablas de la base de datos
+model Role {
+    id          Int      @id @default(autoincrement())
+    name        String   @unique
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@map("Roles")
+}
+
+model Countries {
+    id          Int        @id @default(autoincrement())
+    iso_code     String    @unique
+    name_country String
+    iata_code    String    @unique
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+    
+    // Relación uno a muchos: un país tiene muchas ciudades
+    cities      Cities[]
+
+    @@map("Countries")
+}
+
+model Cities {
+    id          Int      @id @default(autoincrement())
+    name_city   String
+    iata_codes  String    @unique
+    countryId   Int
+    country     Countries @relation(fields: [countryId], references: [id])
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    // Relación uno a muchos: una ciudad tiene muchos estados
+    states      States[]
+
+    @@index([countryId])
+    @@map("Cities")
+}
+
+model States {
+    id          Int      @id @default(autoincrement())
+    cod_territorial  String
+    cod_postal      Int
+    cod_sii        Int
+    name_comuna     String
+    cityId         Int
+    city           Cities   @relation(fields: [cityId], references: [id])
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    @@index([cityId])
+    @@map("States")
+}
