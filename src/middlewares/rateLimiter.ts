@@ -16,6 +16,9 @@ interface RateLimitInfo {
 // Almacén en memoria para rate limiting (en producción usar Redis)
 const rateLimitStore = new Map<string, RateLimitInfo>();
 
+// Límite máximo de entradas en el store para prevenir crecimiento ilimitado
+const MAX_STORE_SIZE = 10000;
+
 // Configuración por defecto del rate limiter
 interface RateLimitConfig {
     windowMs: number;      // Ventana de tiempo en milisegundos
@@ -176,6 +179,13 @@ export const cleanupRateLimitStore = () => {
     const now = Date.now();
     let cleaned = 0;
     
+    // Si el store es muy grande, limpiar más agresivamente
+    if (rateLimitStore.size > MAX_STORE_SIZE) {
+        rateLimitStore.clear();
+        logger.warn(`Rate limit store excedió ${MAX_STORE_SIZE} entradas. Store limpiado completamente.`);
+        return;
+    }
+    
     for (const [key, info] of rateLimitStore.entries()) {
         if (info.resetTime <= now) {
             rateLimitStore.delete(key);
@@ -184,7 +194,7 @@ export const cleanupRateLimitStore = () => {
     }
     
     if (cleaned > 0) {
-        logger.info(`Limpieza de rate limit store: ${cleaned} entradas eliminadas`);
+        logger.debug(`Limpieza de rate limit store: ${cleaned} entradas eliminadas (${rateLimitStore.size} restantes)`);
     }
 };
 
@@ -193,5 +203,5 @@ export const generalRateLimit = createRateLimiter(rateLimitConfigs.general);
 export const strictRateLimit = createRateLimiter(rateLimitConfigs.strict);
 export const readRateLimit = createRateLimiter(rateLimitConfigs.read);
 
-// Configurar limpieza automática cada 30 minutos
-setInterval(cleanupRateLimitStore, 30 * 60 * 1000);
+// Configurar limpieza automática cada 5 minutos (más frecuente)
+setInterval(cleanupRateLimitStore, 5 * 60 * 1000);

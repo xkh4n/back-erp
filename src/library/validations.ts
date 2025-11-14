@@ -10,10 +10,22 @@ export interface CountryValidationData {
     iata_code: string;
 }
 
+export interface CityValidationData {
+    iata_codes: string;
+    name_city: string;
+    pais: string;
+}
+
 export interface ValidationResult {
     isValid: boolean;
     errors: string[];
     sanitizedData?: CountryValidationData;
+}
+
+export interface CityValidationResult {
+    isValid: boolean;
+    errors: string[];
+    sanitizedData?: CityValidationData;
 }
 
 /**
@@ -27,32 +39,12 @@ const sanitizeString = (input: string): string => {
     }
 
     try {
-        // Remover caracteres peligrosos para SQL injection
+        // Sanitización más eficiente con regex combinada
         let sanitized = input
-            // Escapar comillas simples duplicándolas (método SQL estándar)
-            .replace(/'/g, "''")
-            // Remover o escapar otros caracteres peligrosos
-            .replace(/;/g, '') // Remover punto y coma
-            .replace(/--/g, '') // Remover comentarios SQL
-            .replace(/\/\*/g, '') // Remover inicio de comentario multilinea
-            .replace(/\*\//g, '') // Remover fin de comentario multilinea
-            .replace(/xp_/gi, '') // Remover comandos extendidos de SQL Server
-            .replace(/sp_/gi, '') // Remover stored procedures peligrosos
-            .replace(/exec/gi, '') // Remover EXEC
-            .replace(/execute/gi, '') // Remover EXECUTE
-            .replace(/union/gi, '') // Remover UNION (común en inyecciones)
-            .replace(/select/gi, '') // Remover SELECT
-            .replace(/insert/gi, '') // Remover INSERT
-            .replace(/update/gi, '') // Remover UPDATE
-            .replace(/delete/gi, '') // Remover DELETE
-            .replace(/drop/gi, '') // Remover DROP
-            .replace(/alter/gi, '') // Remover ALTER
-            .replace(/create/gi, '') // Remover CREATE
-            // Limitar a caracteres alfanuméricos, espacios, guiones y algunos especiales seguros
-            .replace(/[^a-zA-Z0-9\s\-_.]/g, '');
+            .replace(/['";\\\-\/\*]/g, '') // Remover caracteres peligrosos comunes
+            .replace(/\b(xp_|sp_|exec|execute|union|select|insert|update|delete|drop|alter|create)\b/gi, '') // Palabras SQL
+            .trim();
 
-        // Trim espacios en blanco al inicio y final
-        sanitized = sanitized.trim();
         return sanitized;
     } catch (error) {
         logger.error('Error al sanitizar string:', error);
@@ -146,7 +138,89 @@ const validateCountryFields = (data: CountryValidationData): ValidationResult =>
     }
 };
 
+/**
+ * Valida los campos de una ciudad (iata_codes, name_city, pais)
+ * @param data - Datos de la ciudad a validar
+ * @returns Resultado de validación con errores y datos sanitizados
+ */
+const validateCityFields = (data: CityValidationData): CityValidationResult => {
+    const errors: string[] = [];
+    
+    try {
+        // Validar que los campos existan
+        if (!data) {
+            errors.push('Los datos de la ciudad son requeridos');
+            return { isValid: false, errors };
+        }
+
+        // Validar iata_codes
+        if (!data.iata_codes || typeof data.iata_codes !== 'string') {
+            errors.push('El código IATA de la ciudad es requerido y debe ser una cadena de texto');
+        } else {
+            const sanitizedIata = sanitizeString(data.iata_codes);
+            if (sanitizedIata.length < 2 || sanitizedIata.length > 5) {
+                errors.push('El código IATA de la ciudad debe tener entre 2 y 5 caracteres');
+            }
+            if (!/^[A-Z0-9]{2,5}$/.test(sanitizedIata.toUpperCase())) {
+                errors.push('El código IATA de la ciudad solo debe contener letras mayúsculas y números');
+            }
+        }
+
+        // Validar name_city
+        if (!data.name_city || typeof data.name_city !== 'string') {
+            errors.push('El nombre de la ciudad es requerido y debe ser una cadena de texto');
+        } else {
+            const sanitizedName = sanitizeString(data.name_city);
+            if (sanitizedName.length < 2 || sanitizedName.length > 100) {
+                errors.push('El nombre de la ciudad debe tener entre 2 y 100 caracteres');
+            }
+        }
+
+        // Validar pais (código IATA del país)
+        if (!data.pais || typeof data.pais !== 'string') {
+            errors.push('El código del país es requerido y debe ser una cadena de texto');
+        } else {
+            const sanitizedPais = sanitizeString(data.pais);
+            if (sanitizedPais.length !== 3) {
+                errors.push('El código del país debe tener exactamente 3 caracteres');
+            }
+            if (!/^[A-Z]{3}$/.test(sanitizedPais.toUpperCase())) {
+                errors.push('El código del país solo debe contener letras mayúsculas');
+            }
+        }
+
+        // Si no hay errores, retornar datos sanitizados
+        if (errors.length === 0) {
+            const sanitizedData: CityValidationData = {
+                iata_codes: sanitizeString(data.iata_codes).toUpperCase(),
+                name_city: sanitizeString(data.name_city),
+                pais: sanitizeString(data.pais).toUpperCase()
+            };
+
+            return {
+                isValid: true,
+                errors: [],
+                sanitizedData
+            };
+        }
+
+        logger.warn(`Validación de ciudad fallida: ${errors.join(', ')}`);
+        return {
+            isValid: false,
+            errors
+        };
+
+    } catch (error) {
+        logger.error('Error durante la validación de ciudad:', error);
+        return {
+            isValid: false,
+            errors: ['Error interno durante la validación']
+        };
+    }
+};
+
 export {
     sanitizeString,
-    validateCountryFields
+    validateCountryFields,
+    validateCityFields
 };

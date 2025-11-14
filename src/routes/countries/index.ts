@@ -6,11 +6,13 @@ logger.level = "all";
 import { Router } from 'express';
 const country = Router();
 
-import { setCountries, getCountries, countryById } from "../../controllers/countriesController";
+import { setCountries, getCountries, countryById, getCountryByIso, getCountryByIata } from "../../controllers/countriesController";
 
 // Ruta para insertar países
 country.put('/nuevopais', setCountries);
 country.post('/obtenerpaises', getCountries);
 country.post('/paisporid', countryById);
+country.post('/paisporiso', getCountryByIso);
+country.post('/paisporiata', getCountryByIata);
 
 export default country;

@@ -104,12 +104,11 @@ const getAllCountries = async (): Promise<ICountry[]> => {
         logger.info('Iniciando obtención de todos los países...');
         
         const countries = await executeWithRetry(async () => {
-            const result = await prisma.$queryRaw<ICountry[]>`
+            return await prisma.$queryRawUnsafe<ICountry[]>(`
                 SELECT id, iso_code, name_country, iata_code, createdAt, updatedAt
-                FROM Countries
+                FROM Countries WITH (NOLOCK)
                 ORDER BY name_country
-            `;
-            return result;
+            `);
         });
         
         logger.info(`Obtenidos ${countries.length} países exitosamente`);
@@ -156,18 +155,14 @@ const getCountryById = async (id: number): Promise<ICountry | null> => {
             });
         }
         const countries = await executeWithRetry(async () => {
-            const result = await prisma.$queryRaw<ICountry[]>`
+            return await prisma.$queryRawUnsafe<ICountry[]>(`
                 SELECT id, iso_code, name_country, iata_code, createdAt, updatedAt
-                FROM Countries
-                WHERE id = ${id}
-            `;
-            return result;
+                FROM Countries WITH (NOLOCK)
+                WHERE id = ?
+            `, id);
         });
         
-        if (countries.length === 0) {
-            return null;
-        }
-        return countries[0];
+        return countries.length > 0 ? countries[0] : null;
     } catch (error) {
         const errorType = classifyDatabaseError(error);
         logger.error("Error fetching country by ID:", {
@@ -494,57 +489,6 @@ const deleteCountry = async (id: number): Promise<boolean> => {
     }
 };
 
-/*
-const getCitiesWithCountry = async (): Promise<CityWithCountry[]> => {
-    try {
-        logger.info('Obteniendo ciudades con información del país...');
-        
-        const query = `
-            SELECT 
-                ci.id,
-                ci.name_city,
-                ci.iata_codes,
-                ci.countryId,
-                ci.createdAt as city_createdAt,
-                ci.updatedAt as city_updatedAt,
-                co.id as country_id,
-                co.name_country,
-                co.iso_code,
-                co.iata_code,
-                co.createdAt as country_createdAt,
-                co.updatedAt as country_updatedAt
-            FROM Cities ci
-            INNER JOIN Countries co ON ci.countryId = co.id
-            ORDER BY co.name_country, ci.name_city
-        `;
-        
-        const result = await prisma.$queryRawUnsafe<any[]>(query);
-        
-        const citiesWithCountry: CityWithCountry[] = result.map(row => ({
-            id: row.id,
-            name_city: row.name_city,
-            iata_codes: row.iata_codes,
-            countryId: row.countryId,
-            createdAt: row.city_createdAt,
-            updatedAt: row.city_updatedAt,
-            country: {
-                id: row.country_id,
-                iso_code: row.iso_code,
-                name_country: row.name_country,
-                iata_code: row.iata_code,
-                createdAt: row.country_createdAt,
-                updatedAt: row.country_updatedAt
-            }
-        }));
-        
-        logger.info(`Obtenidas ${citiesWithCountry.length} ciudades con país`);
-        return citiesWithCountry;
-    } catch (error) {
-        logger.error("Error fetching cities with country:", error);
-        throw error;
-    }
-};
-*/
 const getCountriesWithCities = async (): Promise<CountryWithCities[]> => {
     try {
         logger.info('Obteniendo países con sus ciudades...');
@@ -710,6 +654,82 @@ const setOnlyCountry = async (countryData: CreateCountryData): Promise<ICountry>
     }
 };
 
+const getCountryByIsoCode = async (iso_code: string): Promise<ICountry | null> => {
+    try {
+        // Validar que el código ISO sea válido
+        if (!iso_code || iso_code.length !== 2) {
+            throw createModelError(400, 'INVALID_ISO_CODE', {
+                received: iso_code,
+                expected: 'Código ISO de 2 caracteres'
+            });
+        }
+        
+        const normalizedIso = iso_code.toUpperCase().trim();
+        
+        const countries = await executeWithRetry(async () => {
+            return await prisma.$queryRawUnsafe<ICountry[]>(`
+                SELECT id, iso_code, name_country, iata_code, createdAt, updatedAt
+                FROM Countries WITH (NOLOCK)
+                WHERE iso_code = ?
+            `, normalizedIso);
+        });
+        
+        return countries.length > 0 ? countries[0] : null;
+    } catch (error) {
+        const errorType = classifyDatabaseError(error);
+        logger.error("Error in getCountryByIsoCode:", {
+            iso_code,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            errorType,
+            timestamp: new Date().toISOString()
+        });
+        
+        if (error instanceof CountryModelError) {
+            throw error;
+        }
+        
+        throw error;
+    }
+};
+
+const getCountryByIataCode = async (iata_code: string): Promise<ICountry | null> => {
+    try {
+        // Validar que el código IATA sea válido
+        if (!iata_code || iata_code.length !== 3) {
+            throw createModelError(400, 'INVALID_IATA_CODE', {
+                received: iata_code,
+                expected: 'Código IATA de 3 caracteres'
+            });
+        }
+        
+        const normalizedIata = iata_code.toUpperCase().trim();
+        
+        const countries = await executeWithRetry(async () => {
+            return await prisma.$queryRawUnsafe<ICountry[]>(`
+                SELECT id, iso_code, name_country, iata_code, createdAt, updatedAt
+                FROM Countries WITH (NOLOCK)
+                WHERE iata_code = ?
+            `, normalizedIata);
+        });
+        
+        return countries.length > 0 ? countries[0] : null;
+    } catch (error) {
+        const errorType = classifyDatabaseError(error);
+        logger.error("Error in getCountryByIataCode:", {
+            iata_code,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            errorType,
+            timestamp: new Date().toISOString()
+        });
+
+        if (error instanceof CountryModelError) {
+            throw error;
+        }
+
+        throw error;
+    }
+};
+
 // === EXPORTS ===
 export { 
     getAllCountries, 
@@ -719,6 +739,7 @@ export {
     deleteCountry,
     getCountriesWithCities,
     setOnlyCountry,
-    createModelError,
-    validateCountryData
+    validateCountryData,
+    getCountryByIsoCode,
+    getCountryByIataCode
 };

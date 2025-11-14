@@ -4,7 +4,7 @@ const logger = Log4js.getLogger('countriesController');
 logger.level = "all";
 
 import { Request, Response, NextFunction } from 'express';
-import { setOnlyCountry, CreateCountryData, getAllCountries, getCountryById } from '../models/countriesModel';
+import { setOnlyCountry, CreateCountryData, getAllCountries, getCountryById, getCountryByIsoCode, getCountryByIataCode } from '../models/countriesModel';
 import { validateCountryFields, sanitizeString } from '../library/validations';
 import { getErrorByCode } from "../utils/manageErrors";
 import { executeWithRetry, classifyDatabaseError } from "../middlewares/databaseErrorHandler";
@@ -298,8 +298,121 @@ const countryById = async (req: Request, res: Response, next: NextFunction) => {
     }
 }
 
+const getCountryByIso = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { iso_code } = req.body;
+        if (!iso_code) {
+            return sendErrorResponse(res, 400, {
+                reason: 'Código ISO es requerido',
+                expectedFormat: 'Cadena de texto no vacía'
+            });
+        }
+        const sanitizedIsoCode = sanitizeString(iso_code.toString().toUpperCase());
+        const country = await executeWithRetry(async () => {
+            return await getCountryByIsoCode(sanitizedIsoCode);
+        });
+        if(!country){
+            return sendErrorResponse(res, 404, {
+                reason: 'País no encontrado',
+                searchedIsoCode: sanitizedIsoCode
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            message: 'País obtenido correctamente',
+            data: {
+                country
+            }
+        });
+    } catch (error) {
+        logger.error('Error general en countryById:', error);
+        
+        // Clasificar el error para determinar el código apropiado
+        const errorType = classifyDatabaseError(error);
+        let errorCode = 500;
+        
+        if (error instanceof Error) {
+            const message = error.message.toLowerCase();
+            if (message.includes('invalid object name') || message.includes('208')) {
+                errorCode = 208;
+            } else if (message.includes('invalid column name') || message.includes('207')) {
+                errorCode = 207;
+            } else if (message.includes('connection') || message.includes('econnrefused')) {
+                errorCode = 503;
+            } else if (message.includes('timeout')) {
+                errorCode = 504;
+            }
+        }
+        
+        return next(createError(errorCode, {
+            details: error instanceof Error ? error.message : 'Error desconocido',
+            timestamp: new Date().toISOString(),
+            operation: 'countryById',
+            searchedId: req.params.id || req.body.id,
+            errorType
+        }));
+    }
+};
+
+
+const getCountryByIata = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { iata_code } = req.body;
+        if (!iata_code) {
+            return sendErrorResponse(res, 400, {
+                reason: 'Código IATA es requerido',
+                expectedFormat: 'Cadena de texto no vacía'
+            });
+        }
+        const sanitizedIataCode = sanitizeString(iata_code.toString().toUpperCase());
+        const country = await executeWithRetry(async () => {
+            return await getCountryByIataCode(sanitizedIataCode);
+        });
+        if(!country){
+            return sendErrorResponse(res, 404, {
+                reason: 'País no encontrado',
+                searchedIataCode: sanitizedIataCode
+            });
+        }
+        return res.status(200).json({
+            success: true,
+            message: 'País obtenido correctamente',
+            data: {
+                country
+            }
+        });
+    } catch (error) {
+        logger.error('Error general en getCountryByIata:', error);
+        // Clasificar el error para determinar el código apropiado
+        const errorType = classifyDatabaseError(error);
+        let errorCode = 500;
+        if (error instanceof Error) {
+            const message = error.message.toLowerCase();
+            if (message.includes('invalid object name') || message.includes('208')) {
+                errorCode = 208;
+            } else if (message.includes('invalid column name') || message.includes('207')) {
+                errorCode = 207;
+            } else if (message.includes('connection') || message.includes('econnrefused')) {
+                errorCode = 503;
+            } else if (message.includes('timeout')) {
+                errorCode = 504;
+            }
+        }
+
+        return next(createError(errorCode, {
+            details: error instanceof Error ? error.message : 'Error desconocido',
+            timestamp: new Date().toISOString(),
+            operation: 'getCountryByIata',
+            searchedIataCode: req.body.iata_code,
+            errorType
+        }));
+    }
+};
+
 export {
     setCountries,
     getCountries,
-    countryById
+    countryById,
+    getCountryByIso,
+    getCountryByIata
 };

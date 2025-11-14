@@ -5,8 +5,12 @@ logger.level = "all";
 
 import health from "./health";
 import country from "./countries";
+import cities from "./cities";
+import states from "./states";
 
 export {
     health,
-    country
+    country,
+    cities,
+    states
 }
